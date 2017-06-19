@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title></title>
+	<meta charset="utf-8">
+</head>
+<body>
+	
+	<div id="labyrinth-wrap"></div>
+
+	<style>
+		body {
+			text-align: center;
+		}
+		body, div {
+			margin: 0;
+			padding: 0;
+			border: 0;
+		}
+		#labyrinth-wrap {
+			display: inline-block;
+			margin: 144px auto 0;
+			padding: 21px;
+			border: 1px solid grey;
+		}
+		#labyrinth {
+				/*margin-bottom: 200px;*/
+		}
+		.lab-cell {
+			width: 55px;
+			height: 55px;
+			margin: 2px;
+			display: inline-block;
+			float: left;
+		}
+		.lab-cell.start-cell {
+			background: blue;
+		}
+		.lab-cell.empty-cell {
+			background: white;
+		}
+		.lab-cell.wall-cell {
+			background: grey;
+		}
+		.lab-cell.road-cell {
+			background: green;
+		}
+		.lab-cell.finish-cell {
+			background: green url('http://www.pngmart.com/files/3/Finish-Line-PNG-Pic.png') no-repeat center center;
+			background-size: contain;
+		}
+	</style>
+
+	<script>
+	/* --- IDEA --- */
+	/* 
+	* Raboti za vsqkakva pravougulna/kvadratna matrica 
+	*
+	* - Safe zones -
+	* na vsqko razklonenie pravi safe zone, kato ima samo edin glaven i ot nego do kato ne nameri pravilen put napred 
+	* 
+	* - Detailno -
+	* na vsqko 'krustovishte' vijda kolko vuzmojni putq ima - izbira edin i trugva po nego do kato obhodi vsichko v nego
+	* posle se vrushta na glavniq i zacherkva izminatiq kato vuzmojnost produljava napred i t.n.
+	* purvoto razklonenie - naj-glaven safe zone - ot nego trugva kum edno i obhojda kato suzdava po malki safe zoni, dokato ne stigne do put koito 
+	* da se razbie na drebni funkcii: 
+	* > find start
+	* > check available directions
+	*
+	* at every save point just add array with current position to array with save points - every time dead end -> return to last legit save point
+	* 
+	* - Main road -
+	* v otdelna promenliva zapisva vseki veren hod
+	*
+	* Transform in OOP
+		*
+		*
+		*  IDEA => sus setTimeout da pokaje pravilniq put taka che da izlizat edno po edno -> promenliva koqto se uvelichava predi vseki timeout
+		*
+		* */
+	function labyrinth(ara) {
+
+		//createHtmlGrid(ara);
+
+		var correctRoadCells = [];
+		var allRoadCells = [];
+        var safeZones = [];
+		var startCell = findStart(ara);
+		var foundExit = false;
+		var currCell = startCell;
+		var tempCells = [];
+		var countTemp = 0;
+
+		console.log("- Start cell -> " + startCell);
+		correctRoadCells.push(startCell);
+		allRoadCells.push(startCell);
+
+		/* Calculate correct road */
+		while(foundExit === false) {
+			move();
+		}
+
+        //createHtmlGrid(ara);
+
+		/* Result */
+		console.log("--- Correct road steps ---");
+		for (let crc = 0; crc < correctRoadCells.length; crc++) {
+			console.log((crc + 1) + " step -> " + correctRoadCells[crc]);
+		}
+
+//		let finalAra = ara;
+//
+//		console.log(correctRoadCells.length);
+//		for (let ggCount = 0; ggCount < correctRoadCells.length; ggCount++) {
+//            console.log(correctRoadCells[ggCount][0]);
+//			//finalAra[correctRoadCells[ggCount][0]][correctRoadCells[ggCount][1]] = 3;
+//		}
+
+		for (let n = 0; n < correctRoadCells.length; n++) {
+			if (ara[(correctRoadCells[n][0])][(correctRoadCells[n][1])] !== 5) {
+				if (n < correctRoadCells.length - 1) {
+					ara[(correctRoadCells[n][0])][(correctRoadCells[n][1])] = 7;	
+				} else {
+					ara[(correctRoadCells[n][0])][(correctRoadCells[n][1])] = 8;
+				}
+			}
+		}
+		console.log(ara);
+		createHtmlGrid(ara);
+
+		/* FUNCTIONS */
+		function move() {
+
+			let availableDirs = checkAvailableDirections();
+			console.log(" available directions -> " + availableDirs);
+
+			if (availableDirs.length == 1) {
+				
+				currCell = availableDirs[0];
+				console.log("- Move to -> " + availableDirs);
+
+                if (safeZones.length == 0) {
+                    correctRoadCells.push(currCell);
+                    console.log(" " + currCell + " added to correctRoadCells");
+                } else if (safeZones.length > 0) {
+                    tempCells.push(currCell);
+                    console.log(" " + currCell + " added to tempCell -> " + tempCells);
+                    
+                    countTemp++;
+                    console.log(" Counter of temporary +1 -> " + countTemp);
+				}
+				allRoadCells.push(currCell);
+				console.log(" " + currCell + " added to allRoadCells");
+
+			} else if (availableDirs.length == 0) {
+				
+				if (checkForExit()) {
+					
+					foundExit = true;
+					correctRoadCells = correctRoadCells.concat(tempCells);
+					console.log("-=- EXIT FOUND AT POSITION [" + currCell + "] -=-");
+
+				} else if (safeZones.length > 0){
+
+					currCell = safeZones[(safeZones.length - 1)];
+					console.log("- No available directions. Moving to last safe zone " + safeZones[(safeZones.length - 1)]);
+                    
+					safeZones.pop();
+					console.log(" Removed last safe zone -> " + safeZones);
+
+                    console.log(" Counter of temporary is -> " + countTemp);
+                    for (let cch = 1; cch <= countTemp; cch++) {
+                        tempCells.pop();
+                        console.log(" Temp cells removing -> " + tempCells);
+					}
+                    countTemp = tempCells.length;
+                    console.log(" Counter of temporary reset to " + countTemp);
+
+					// * allRoadCells.push(currCell);
+					// * currCell = safePoints[safePoints.length - 1];
+
+				} else {
+
+				    console.log("Not sure if this is supposed to happen!");
+				    foundExit = true;
+
+				}
+
+			} else if (availableDirs.length > 1) {
+
+				//foundExit = true; // <-- remove when finish
+				//create safe zone
+				//explore one by one roads
+
+				safeZones.push(currCell);
+				console.log(" " + currCell + " added to safeZones -> " + safeZones);
+				
+				currCell = availableDirs[0];
+				console.log("- Move to -> " + availableDirs[0]);
+                
+                tempCells.push(currCell);
+                console.log(" Current cell " + currCell + " pushed to tempCells -> " + tempCells);
+                
+                countTemp = 1;
+				console.log(" Count of temporary +1 -> " + countTemp);
+
+				allRoadCells.push(currCell);
+				console.log(" " + currCell + " added to allRoadCells");
+			}
+		}
+
+		function checkForExit() {
+			var isExit = false;
+			if (currCell[0] == 0 || currCell[1] == 0 || currCell[0] == ara.length - 1 || currCell[1] == ara[1].length - 1) {
+				isExit = true;
+			}
+			return isExit;
+		}
+
+		function checkAvailableDirections() {
+			let variantCells = [];
+
+			//check if available directions
+			if (currCell[1] + 1 < ara[0].length) {
+				if (ara[(currCell[0])][(currCell[1] + 1)] == 0) {
+					variantCells.push([(currCell[0]), (currCell[1] + 1)]);   //right
+				}
+			}
+			if (currCell[0] + 1 < ara.length) {
+				if (ara[(currCell[0] + 1)][(currCell[1])] == 0) {
+					variantCells.push([(currCell[0] + 1), (currCell[1])]);   //down
+				}
+			}
+			if (currCell[1] - 1 >= 0) {
+				if (ara[(currCell[0])][(currCell[1] - 1)] == 0) {
+					variantCells.push([(currCell[0]), (currCell[1] - 1)]);   //left
+				}
+			}
+			if (currCell[0] - 1  >= 0) {
+				if (ara[(currCell[0] - 1)][(currCell[1])] == 0) {
+					variantCells.push([(currCell[0] - 1), (currCell[1])]);   //up
+				}
+			}
+			
+			//check if available cells are not from already been there cells
+			//console.log(variantCells.length + " variants before 'been there' check");
+			for (let arc = 0; arc < allRoadCells.length; arc++) {
+				for (let vc = variantCells.length - 1; vc >= 0; vc--) {
+					if (allRoadCells[arc][0] == variantCells[vc][0] && allRoadCells[arc][1] == variantCells[vc][1]) {
+						//console.log("This is -> " + variantCells[vc] + " - already been there.");
+						//console.log("+ Remove " + variantCells[vc] + " from variantCells - " + variantCells);
+						var helper = variantCells.splice(vc, 1);
+						//console.log("+ VariantCells -> " + variantCells);
+					}
+				}
+			}
+			//console.log(variantCells.length + " variants after 'been there' check");
+
+			return variantCells;
+		}
+
+		function findStart(ara) {
+			let start = new Array(2);
+			for (let i = 0; i < ara.length; i++) {
+				for (let j = 0; j < ara[0].length; j++) {
+					if (ara[i][j] === 5) {
+						start[0] = i;
+						start[1] = j;
+					}
+				}
+			}
+			return start;
+		}
+
+		function createHtmlGrid(ara) {
+			let htmlElem = document.createElement("div");
+			htmlElem.setAttribute("id", "labyrinth");
+			let row, cell;
+
+            for (let i = 0; i < ara.length; i++) {
+                row = document.createElement("div");
+                row.className = "rows";
+                for (let j = 0; j < ara[0].length; j++) {
+					cell = document.createElement("div");
+                    if (ara[i][j] === 5) {
+						cell.className = "lab-cell start-cell";
+                    } else if (ara[i][j] === 0) {
+                        cell.className = "lab-cell empty-cell";
+					} else if (ara[i][j] === 1) {
+                        cell.className = "lab-cell wall-cell";
+					} else if (ara[i][j] === 7) {
+						cell.className = "lab-cell road-cell";
+					} else if (ara[i][j] === 8) {
+						cell.className = "lab-cell finish-cell";
+					}
+					row.appendChild(cell);
+                }
+                htmlElem.appendChild(row);
+            }
+
+            document.getElementById("labyrinth-wrap").appendChild(htmlElem);
+		}
+	}
+
+	/* === MAPS === */
+	
+	var map_00 = [
+		[1,5,1,1,1,1,1,1,1,1,1,0,1,1,1,1],
+		[1,0,1,0,0,1,0,0,0,1,0,0,0,0,0,1],
+		[1,0,0,1,0,1,0,1,0,1,0,1,1,1,0,1],
+		[1,0,1,1,0,1,0,1,0,1,1,1,0,1,0,1],
+		[1,0,1,0,0,1,0,1,0,1,0,1,0,1,0,1],
+		[1,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0],
+		[1,1,1,1,1,1,0,1,1,0,1,1,1,1,0,1],
+		[1,0,0,0,0,0,0,1,0,0,1,0,0,0,0,1],
+		[1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,1]
+	];
+	
+	var map_01 = [
+		[1, 1, 1, 5, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+		[1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0],
+		[1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1],
+		[1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1],
+		[1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 0, 1, 1],
+		[1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 1, 1],
+		[1, 0, 1, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1],
+		[1, 0, 1, 0, 1, 1, 0, 0, 0, 1, 1, 0, 1],
+		[1, 0, 1, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1],
+		[1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0],
+		[1, 0, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1],
+		[1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+		[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1]
+	];
+
+	var map_02 = [
+		[1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1],
+		[1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+		[1, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1],
+		[1, 0, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1],
+		[1, 0, 0, 0, 1, 1, 1, 1, 0, 1, 0, 1, 1],
+		[1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 0, 1],
+		[1, 0, 0, 0, 1, 0, 1, 1, 0, 1, 1, 0, 5],
+		[1, 1, 1, 0, 1, 0, 0, 0, 0, 1, 1, 0, 1],
+		[1, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1],
+		[1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1],
+		[1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1],
+		[1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1],
+		[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+	];
+
+	var map_03 = [
+		[1, 1, 5, 1, 1],
+		[1, 1, 0, 1, 1],
+		[1, 1, 0, 0, 1],
+		[1, 1, 1, 0, 1],
+		[0, 0, 0, 0, 1],
+		[1, 1, 1, 1, 1],
+		[1, 1, 1, 1, 1],
+	];
+
+	var map_04 = [
+		[1, 1, 1, 1, 1, 1],
+		[5, 0, 0, 1, 1, 1],
+		[1, 1, 0, 1, 0, 0],
+		[1, 1, 0, 0, 0, 1],
+		[1, 1, 1, 1, 1, 1]
+	];
+
+    console.log("======== SBTECH LABYRINTH ========");
+    labyrinth(map_00);
+	//console.log("======== FIRST LABYRINTH ========");
+	//labyrinth(map_01);
+	//console.log("======== SECOND LABYRINTH ========");
+	//labyrinth(map_02);
+	//console.log("======== THIRD LABYRINTH ========");
+	//labyrinth(map_03);
+	//console.log("======== FOURTH LABYRINTH ========");
+	//labyrinth(map_04);
+	</script>
+</body>
+</html>
